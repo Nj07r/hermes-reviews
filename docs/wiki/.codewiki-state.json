@@ -1,0 +1,16 @@
+{
+  "repo_name": "hermes-reviews",
+  "source_path": "~/WebstormProjects/hermes-reviews",
+  "source_sha": "29c4b932cc9795a7bb26235a03b9d7ac77f0018b",
+  "generated_at": "2026-11-14T13:46:05Z",
+  "generator": "hermes-agent code-wiki skill v0.2.0",
+  "modules_documented": [
+    "reviews_core.py",
+    "dashboard/plugin_api.py",
+    "walkthrough_runner.py",
+    "desktop/src (page)",
+    "desktop/src/diffs.js",
+    "desktop/src/walkthrough.jsx",
+    "scripts/build.mjs"
+  ]
+}

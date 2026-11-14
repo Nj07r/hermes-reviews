@@ -38,3 +38,7 @@ Desktop plugins may import only `@hermes/plugin-sdk` and `react`, so the build b
 `@pierre/diffs`, `@pierre/trees` and a cut-down Shiki (our languages, Flexoki theme only).
 Backend calls are `POST /api/plugins/reviews/call/<name>`; `reviews_core.py` is reloaded per
 request, so backend edits are live without a gateway restart (except `dashboard/plugin_api.py`).
+
+## Docs
+
+Code wiki: [docs/wiki/README.md](docs/wiki/README.md)
