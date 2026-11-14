@@ -234,6 +234,8 @@ export function TreeView({ paths, status, onSelect, selected }) {
   useEffect(() => {
     const t = tree.current
     if (!t || !selected) return
+    const now = t.getSelectedPaths()
+    if (now.length === 1 && now[0] === selected) return
     silent.current = true
     try {
       for (const p of t.getSelectedPaths()) if (p !== selected) t.getItem(p)?.deselect?.()

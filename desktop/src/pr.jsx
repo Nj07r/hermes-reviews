@@ -1,6 +1,6 @@
 // One pull request: header, Overview (description, checks, conversation), Files, Walkthrough.
 import { Codicon, host } from '@hermes/plugin-sdk'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ago, call, copyText, errText, openUrl, savePrefs, shortRepo, store, tintFor, useStore } from './api.js'
 import { DiffView, TreeView, diffItem, makeLoader, renderThread, threadAnnotations } from './diffs.js'
 import { cleanHtml, onHtmlClick } from './html.js'
@@ -221,6 +221,24 @@ function Files({ data }) {
     [files, threads, pr.headSha]
   )
   const render = useCallback(a => renderThread(a, { open: openUrl, ago, tintFor }), [])
+  // While we scroll on purpose (tree click, next thread), the scroll passes other files. Do not let
+  // "follow the diff" re-select them in the tree; release once the scroll has been still a moment.
+  const lock = useRef(false)
+  const idle = useRef(0)
+  const holdFollow = () => {
+    lock.current = true
+    clearTimeout(idle.current)
+    idle.current = setTimeout(() => (lock.current = false), 700)
+  }
+  const follow = useCallback(id => {
+    if (lock.current) {
+      clearTimeout(idle.current)
+      idle.current = setTimeout(() => (lock.current = false), 200)
+      return
+    }
+    setCurrent(id)
+  }, [])
+  useEffect(() => () => clearTimeout(idle.current), [])
   const roots = useMemo(() => threads.filter(t => !t.replyTo && !t.outdated && t.line && paths.includes(t.path)), [threads, paths])
   const [threadAt, setThreadAt] = useState(-1)
   const nextThread = () => {
@@ -228,11 +246,13 @@ function Files({ data }) {
     const k = (threadAt + 1) % roots.length
     const t = roots[k]
     setThreadAt(k)
+    holdFollow()
     setCurrent(t.path)
     viewer.scrollTo({ type: 'line', id: t.path, lineNumber: t.line, side: t.side === 'LEFT' ? 'deletions' : 'additions', align: 'center', behavior: 'smooth' })
   }
   const jump = useCallback(
     path => {
+      holdFollow()
       setCurrent(path)
       viewer?.scrollTo({ type: 'item', id: path, align: 'start', behavior: 'smooth' })
     },
@@ -280,7 +300,7 @@ function Files({ data }) {
           loader={loader}
           renderAnnotation={render}
           onViewer={setViewer}
-          onScrollItem={setCurrent}
+          onScrollItem={follow}
         />
       </div>
     </div>
