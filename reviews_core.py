@@ -138,12 +138,45 @@ def parse_pr_id(value: str) -> tuple[str, int]:
 
 # ---------------------------------------------------------------- calls
 
+SEARCH_QUERY = """query($q: String!) {
+  search(query: $q, type: ISSUE, first: 100) {
+    nodes { ... on PullRequest {
+      number title url isDraft updatedAt createdAt headRefName
+      author { login } repository { nameWithOwner }
+      files(first: 100) { nodes { path } }
+    } }
+  }
+}"""
+TICKET = re.compile(r"^[A-Za-z][A-Za-z0-9]*-\d+$")
+
+
+def project_of(branch: str, paths: list[str]) -> tuple[str, str]:
+    """(project, source). Our branch template is <TICKET>/<project>/<kind>/<slug>, e.g.
+    ACME-3478/billing/fix/strip-formatting. Without it, a clear majority of changed files under
+    apps/<name>/ names the project. Otherwise "Other"."""
+    segs = [s for s in str(branch or "").split("/") if s]
+    if len(segs) >= 3 and TICKET.match(segs[0]):
+        return segs[1].lower(), "branch"
+    apps = [p.split("/")[1].lower() for p in paths if p.startswith("apps/") and p.count("/") >= 2]
+    if apps:
+        top = max(set(apps), key=apps.count)
+        if apps.count(top) * 2 > len(paths):
+            return top, "files"
+    return "Other", ""
+
+
 def api_list(_id: str = "", _body=None) -> dict:
     org = owner()
-    out = gh("search", "prs", "--review-requested=@me", "--state=open", f"--owner={org}",
-             "--json", FIELDS, "--limit", "100")
+    out = gh("api", "graphql", "-f", f"query={SEARCH_QUERY}", "-f", f"q=is:pr is:open review-requested:@me org:{org}")
+    nodes = [n for n in ((json.loads(out or "{}").get("data") or {}).get("search") or {}).get("nodes") or [] if n]
     hidden = set(load_state().get("hidden", []))
-    prs = [shape(p) for p in json.loads(out or "[]")]
+    prs = []
+    for n in nodes:
+        row = shape(n)
+        paths = [f.get("path", "") for f in ((n.get("files") or {}).get("nodes") or [])]
+        row["branch"] = n.get("headRefName", "")
+        row["project"], row["projectSource"] = project_of(row["branch"], paths)
+        prs.append(row)
     prs.sort(key=lambda p: p["updated"], reverse=True)
     shown = [p for p in prs if p["url"] not in hidden]
     return {"ok": True, "owner": org, "prs": shown, "hidden": [p for p in prs if p["url"] in hidden]}
@@ -283,7 +316,7 @@ def api_add(_id: str = "", body=None) -> dict:
     if pr_owner.lower() != org.lower():
         raise ValueError(f"only {org} pull requests")
     full = f"{pr_owner}/{repo}"
-    view = json.loads(gh("pr", "view", str(number), "-R", full, "--json", "number,title,url,author,isDraft,updatedAt,createdAt,state"))
+    view = json.loads(gh("pr", "view", str(number), "-R", full, "--json", "number,title,url,author,isDraft,updatedAt,createdAt,state,headRefName,files"))
     if view.get("state") != "OPEN":
         raise ValueError(f"{full}#{number} is {str(view.get('state', '')).lower()}")
     me = gh("api", "user", "--jq", ".login").strip()
@@ -292,7 +325,10 @@ def api_add(_id: str = "", body=None) -> dict:
     gh("api", "-X", "POST", f"repos/{full}/pulls/{number}/requested_reviewers", "-f", f"reviewers[]={me}", "--silent")
     view["repository"] = {"nameWithOwner": full}
     set_hidden(view.get("url", ""), False)
-    return {"ok": True, "pr": shape(view)}
+    row = shape(view)
+    row["branch"] = view.get("headRefName", "")
+    row["project"], row["projectSource"] = project_of(row["branch"], [f.get("path", "") for f in view.get("files") or []])
+    return {"ok": True, "pr": row}
 
 
 def _merge_base(repo: str, number: int) -> str:

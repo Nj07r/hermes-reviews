@@ -1,7 +1,7 @@
 // The queue: open PRs that wait for my review. Add by link, hide in my space, open a PR.
 import { Codicon } from '@hermes/plugin-sdk'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ago, call, errText, openUrl, shortRepo, store, tintFor } from './api.js'
+import { ago, call, errText, openUrl, savePrefs, shortRepo, store, tintFor, useStore } from './api.js'
 
 const POLL_MS = 120_000
 
@@ -13,7 +13,7 @@ export function Avatar({ login, small }) {
   )
 }
 
-function Row({ pr, index, onHide, onUnhide, hidden }) {
+function Row({ pr, index, onHide, onUnhide, hidden, groupBy }) {
   const open = () => store.set({ selected: `${pr.repo}#${pr.number}`, tab: 'overview' })
   return (
     <div
@@ -33,8 +33,17 @@ function Row({ pr, index, onHide, onUnhide, hidden }) {
           <span className="rv-mono">
             {shortRepo(pr.repo)} #{pr.number}
           </span>
-          <span>·</span>
-          <span>{pr.author}</span>
+          {groupBy !== 'person' ? (
+            <>
+              <span>·</span>
+              <span>{pr.author}</span>
+            </>
+          ) : null}
+          {groupBy !== 'project' && pr.project && pr.project !== 'Other' ? (
+            <span className="rv-tag" title={pr.projectSource === 'files' ? 'Project guessed from the changed files' : `From branch ${pr.branch}`}>
+              {pr.project}
+            </span>
+          ) : null}
           {pr.draft ? <span className="rv-badge" data-tone="draft">Draft</span> : null}
         </div>
       </div>
@@ -71,6 +80,50 @@ function Row({ pr, index, onHide, onUnhide, hidden }) {
   )
 }
 
+function groupsOf(prs, groupBy) {
+  if (groupBy === 'none') return [{ key: 'all', label: null, prs }]
+  const map = new Map()
+  for (const pr of prs) {
+    const key = groupBy === 'person' ? pr.author || 'unknown' : pr.project || 'Other'
+    if (!map.has(key)) map.set(key, [])
+    map.get(key).push(pr)
+  }
+  return [...map.entries()]
+    .map(([key, list]) => ({ key, label: key, prs: list, guessed: groupBy === 'project' && list.every(p => p.projectSource === 'files') }))
+    .sort((a, b) => (a.key === 'Other') - (b.key === 'Other') || b.prs.length - a.prs.length || a.key.localeCompare(b.key))
+}
+
+const collapsedGroups = new Set()
+
+function Group({ group, groupBy, start, onHide }) {
+  const id = `${groupBy}:${group.key}`
+  const [open, setOpen] = useState(!collapsedGroups.has(id))
+  const toggle = () => {
+    open ? collapsedGroups.add(id) : collapsedGroups.delete(id)
+    setOpen(!open)
+  }
+  return (
+    <section className="rv-group">
+      {group.label ? (
+        <button type="button" className="rv-group-head" data-open={open} onClick={toggle}>
+          <Codicon name="chevron-right" />
+          {groupBy === 'person' ? <Avatar login={group.label} small /> : <Codicon name={group.key === 'Other' ? 'circle-large-outline' : 'folder'} />}
+          <span className="rv-group-name">{group.label}</span>
+          <span className="rv-count">{group.prs.length}</span>
+          {group.guessed ? <span className="rv-faint rv-italic" style={{ fontSize: '0.72rem' }}>from files</span> : null}
+        </button>
+      ) : null}
+      {open ? (
+        <div className="rv-list">
+          {group.prs.map((pr, i) => (
+            <Row key={pr.url} pr={pr} index={start + i} groupBy={groupBy} onHide={onHide} />
+          ))}
+        </div>
+      ) : null}
+    </section>
+  )
+}
+
 let cache = null // survives leaving and re-entering the page
 
 export function ReviewsList() {
@@ -80,6 +133,7 @@ export function ReviewsList() {
   const [link, setLink] = useState('')
   const [adding, setAdding] = useState(false)
   const [showHidden, setShowHidden] = useState(false)
+  const groupBy = useStore(s => s.groupBy)
   const added = useRef([])
 
   const load = useCallback(async () => {
@@ -148,6 +202,25 @@ export function ReviewsList() {
           <h1 className="rv-h1">Reviews</h1>
           <span className="rv-count">{data ? `${prs.length} waiting` : ''}</span>
           <span className="rv-spacer" />
+          <div className="rv-seg" role="group" aria-label="Group by">
+            {[
+              ['project', 'Project'],
+              ['person', 'Person'],
+              ['none', 'None']
+            ].map(([k, label]) => (
+              <button
+                key={k}
+                type="button"
+                data-on={groupBy === k}
+                onClick={() => {
+                  store.set({ groupBy: k })
+                  savePrefs()
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <button type="button" className="rv-btn rv-btn-ghost" disabled={loading} onClick={load}>
             <Codicon name={loading ? 'loading' : 'refresh'} spinning={loading} />
             Refresh
@@ -182,10 +255,15 @@ export function ReviewsList() {
             ))}
           </div>
         ) : prs.length ? (
-          <div className="rv-list">
-            {prs.map((pr, i) => (
-              <Row key={pr.url} pr={pr} index={i} onHide={p => move(p, true)} />
-            ))}
+          <div className="rv-groups">
+            {(() => {
+              let start = 0
+              return groupsOf(prs, groupBy).map(g => {
+                const el = <Group key={`${groupBy}:${g.key}`} group={g} groupBy={groupBy} start={start} onHide={p => move(p, true)} />
+                start += g.prs.length
+                return el
+              })
+            })()}
           </div>
         ) : (
           <div className="rv-empty">

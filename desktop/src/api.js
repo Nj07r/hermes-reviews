@@ -52,7 +52,8 @@ export const store = createStore({
   selected: null, // PR id "owner/repo#n" or null for the list
   tab: 'overview',
   diffStyle: 'split',
-  wrap: false
+  wrap: false,
+  groupBy: 'project' // 'project' | 'person' | 'none'
 })
 
 export const useStore = sel => useSyncExternalStore(store.subscribe, () => sel(store.get()))
@@ -62,14 +63,15 @@ export function loadPrefs() {
   if (prefs && typeof prefs === 'object') {
     store.set({
       diffStyle: prefs.diffStyle === 'unified' ? 'unified' : 'split',
-      wrap: Boolean(prefs.wrap)
+      wrap: Boolean(prefs.wrap),
+      groupBy: ['project', 'person', 'none'].includes(prefs.groupBy) ? prefs.groupBy : 'project'
     })
   }
 }
 
 export function savePrefs() {
-  const { diffStyle, wrap } = store.get()
-  ctx.storage?.set?.('prefs', { diffStyle, wrap })
+  const { diffStyle, wrap, groupBy } = store.get()
+  ctx.storage?.set?.('prefs', { diffStyle, wrap, groupBy })
 }
 
 // ---------------------------------------------------------------- format

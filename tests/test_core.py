@@ -30,11 +30,14 @@ class ParseUrl(unittest.TestCase):
 @mock.patch.object(core, "settings", lambda: {"owner": "acme"})
 class Api(unittest.TestCase):
     def test_list_sorted_newest_first(self):
-        with mock.patch.object(core, "gh", return_value=json.dumps(SEARCH)) as gh:
+        nodes = [dict(n, headRefName="ACME-1/web/feat/x", files={"nodes": [{"path": "apps/web/a.ts"}]}) for n in SEARCH]
+        with mock.patch.object(core, "gh", return_value=json.dumps({"data": {"search": {"nodes": nodes}}})) as gh, \
+                mock.patch.object(core, "load_state", lambda: {}):
             out = core.api_list()
         self.assertEqual([p["number"] for p in out["prs"]], [2, 1])
         self.assertTrue(out["prs"][0]["draft"])
-        self.assertIn("--owner=acme", gh.call_args.args)
+        self.assertEqual(out["prs"][0]["project"], "web")
+        self.assertIn("q=is:pr is:open review-requested:@me org:acme", gh.call_args.args)
 
     def test_add_refuses_other_org(self):
         with mock.patch.object(core, "gh") as gh, self.assertRaises(ValueError):
@@ -68,6 +71,20 @@ class Api(unittest.TestCase):
 
 
 PATCH = "@@ -1,2 +1,2 @@\n-a\n+b\n c\n@@ -10,1 +10,2 @@\n x\n+y"
+
+
+class Project(unittest.TestCase):
+    def test_branch_template(self):
+        self.assertEqual(core.project_of("ACME-3478/billing/fix/strip", []), ("billing", "branch"))
+        self.assertEqual(core.project_of("OPS-000/ledger/hot-fix", []), ("ledger", "branch"))
+
+    def test_files_fallback(self):
+        paths = ["apps/billing/a.ts", "apps/billing/b.vue", "bun.lock"]
+        self.assertEqual(core.project_of("alex/acme-3170-ux", paths), ("billing", "files"))
+
+    def test_other(self):
+        self.assertEqual(core.project_of("ACME-3298/eval-llm-judge", ["README.md"]), ("Other", ""))
+        self.assertEqual(core.project_of("fix/nightly", ["apps/a/x", "apps/b/y"]), ("Other", ""))
 
 
 class Hunks(unittest.TestCase):

@@ -79,6 +79,18 @@ export const STYLES = `
 .rv-leave { animation: rv-fall 220ms var(--rv-ease) both; }
 @keyframes rv-fall { to { opacity: 0; transform: translateX(10px); } }
 
+/* groups */
+.rv-groups { display: grid; gap: 14px; }
+.rv-group-head { display: flex; align-items: center; gap: 8px; width: 100%; padding: 4px 6px 6px; border: 0; background: none;
+  color: var(--ui-text-secondary); font: 600 0.8rem var(--rv-sans); cursor: pointer; text-align: left; }
+.rv-group-head:hover { color: var(--ui-text-primary); }
+.rv-group-head > .codicon-chevron-right { color: var(--ui-text-quaternary); transition: transform 200ms var(--rv-ease); }
+.rv-group-head[data-open='true'] > .codicon-chevron-right { transform: rotate(90deg); }
+.rv-group-head > .codicon-folder, .rv-group-head > .codicon-circle-large-outline { color: var(--ui-accent); font-size: 14px; }
+.rv-group-name { text-transform: none; }
+.rv-tag { font: 0.68rem var(--rv-mono); padding: 1px 6px; border-radius: 5px;
+  background: color-mix(in oklab, var(--ui-accent) 12%, transparent); color: var(--ui-accent); white-space: nowrap; }
+
 /* ---- avatars */
 .rv-avatar { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%;
   font: 600 0.75rem var(--rv-sans); flex: none; color: var(--rv-tint); background: color-mix(in oklab, var(--rv-tint) 17%, transparent); }
