@@ -1,0 +1,21 @@
+name: reviews
+version: "0.1.0"
+manifest_version: 2
+description: >
+  Open pull requests in one GitHub org that wait for your review, as a Hermes Desktop page
+  (sidebar row Reviews). Paste a PR link to request your own review and add it to the list.
+  Uses the signed-in gh CLI; no tokens of its own.
+author: Vlad Sergienko
+license: MIT
+requires_hermes: ">=0.23.1"
+kind: standalone
+tags: [desktop, github, code-review]
+provides_tools: []
+provides_hooks: []
+python_dependencies: []
+config_schema:
+  owner:
+    type: str
+    default: ""
+    label: GitHub org
+    description: The org whose pull requests the page lists.
