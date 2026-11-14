@@ -1,0 +1,13 @@
+{
+  "name": "hermes-reviews",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs"
+  },
+  "devDependencies": {
+    "@pierre/diffs": "^1.6.4",
+    "@pierre/trees": "^1.0.0",
+    "esbuild": "^0.28.2"
+  }
+}

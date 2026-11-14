@@ -20,7 +20,7 @@ if str(ROOT) not in sys.path:
 import reviews_core as core  # noqa: E402
 
 router = APIRouter()
-CHANGES = {"add"}
+CHANGES = {"add", "hide", "unhide", "walkthrough"}
 
 
 def refusal(name: str, method: str, headers) -> str:

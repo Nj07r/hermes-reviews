@@ -1,10 +1,12 @@
 name: reviews
-version: "0.1.0"
+version: "0.2.0"
 manifest_version: 2
 description: >
   Open pull requests in one GitHub org that wait for your review, as a Hermes Desktop page
-  (sidebar row Reviews). Paste a PR link to request your own review and add it to the list.
-  Uses the signed-in gh CLI; no tokens of its own.
+  (sidebar row Reviews): a GitHub-like PR page (description, checks, conversation, side-by-side
+  diffs with a file tree and inline review threads), one click to start a "Please review <link>"
+  chat, and an on-demand walkthrough of the change written in the background. Uses the signed-in
+  gh CLI; no tokens of its own.
 author: Vlad Sergienko
 license: MIT
 requires_hermes: ">=0.23.1"
@@ -19,3 +21,13 @@ config_schema:
     default: ""
     label: GitHub org
     description: The org whose pull requests the page lists.
+  walkthrough_model:
+    type: str
+    default: ""
+    label: Walkthrough model
+    description: Model for walkthroughs (empty = your default model).
+  walkthrough_provider:
+    type: str
+    default: ""
+    label: Walkthrough provider
+    description: Provider of the walkthrough model (empty = your default provider).
