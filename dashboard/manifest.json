@@ -1,0 +1,7 @@
+{
+  "name": "reviews",
+  "label": "Reviews",
+  "description": "Pull requests that wait for my review",
+  "version": "0.2.0",
+  "api": "plugin_api.py"
+}
