@@ -13,6 +13,14 @@ export function Avatar({ login, small }) {
   )
 }
 
+// My review state on the PR. Rows from an add (or old cache) have no status: they wait.
+const STATUS = {
+  awaiting: { label: 'Awaiting', tone: 'accent', title: 'Waits for your review' },
+  approved: { label: 'Approved', tone: 'ok', title: 'You approved it' },
+  changes: { label: 'Changes requested', tone: 'bad', title: 'You requested changes' },
+  commented: { label: 'Commented', tone: '', title: 'You reviewed with comments only' }
+}
+
 function Row({ pr, index, onHide, onUnhide, hidden, groupBy }) {
   const open = () => store.set({ selected: `${pr.repo}#${pr.number}`, tab: 'overview' })
   return (
@@ -47,19 +55,21 @@ function Row({ pr, index, onHide, onUnhide, hidden, groupBy }) {
           {pr.draft ? <span className="rv-badge" data-tone="draft">Draft</span> : null}
         </div>
       </div>
+      <div className="rv-row-status">
+        {(() => {
+          const s = STATUS[pr.status] || STATUS.awaiting
+          return (
+            <span className="rv-badge" data-tone={s.tone} title={s.title}>
+              {s.label}
+            </span>
+          )
+        })()}
+        <span className="rv-mono rv-row-lines" title={`${pr.additions ?? 0} lines added, ${pr.deletions ?? 0} lines removed`}>
+          <span className="rv-plus">+{pr.additions ?? 0}</span> <span className="rv-minus">−{pr.deletions ?? 0}</span>
+        </span>
+      </div>
       <div className="rv-row-side">
         <div className="rv-row-actions">
-          <button
-            type="button"
-            className="rv-btn rv-btn-ghost rv-icon-btn"
-            title="Open on GitHub"
-            onClick={e => {
-              e.stopPropagation()
-              openUrl(pr.url)
-            }}
-          >
-            <Codicon name="link-external" />
-          </button>
           <button
             type="button"
             className="rv-btn rv-btn-ghost rv-icon-btn"
@@ -75,6 +85,17 @@ function Row({ pr, index, onHide, onUnhide, hidden, groupBy }) {
         <span className="rv-mono rv-faint" title={`Updated ${pr.updated}`}>
           {ago(pr.updated)}
         </span>
+        <button
+          type="button"
+          className="rv-btn rv-btn-ghost rv-icon-btn"
+          title="Open on GitHub"
+          onClick={e => {
+            e.stopPropagation()
+            openUrl(pr.url)
+          }}
+        >
+          <Codicon name="github" />
+        </button>
       </div>
     </div>
   )
@@ -200,7 +221,7 @@ export function ReviewsList() {
       <div className="rv-wrap">
         <div className="rv-title-row">
           <h1 className="rv-h1">Reviews</h1>
-          <span className="rv-count">{data ? `${prs.length} waiting` : ''}</span>
+          <span className="rv-count">{data ? `${prs.filter(p => (p.status || 'awaiting') === 'awaiting').length} waiting` : ''}</span>
           <span className="rv-spacer" />
           <div className="rv-seg" role="group" aria-label="Group by">
             {[
@@ -227,7 +248,7 @@ export function ReviewsList() {
           </button>
         </div>
         <p className="rv-sub rv-dim" style={{ fontSize: '0.82rem' }}>
-          Open pull requests that wait for your review.
+          Open pull requests that wait for your review, and the ones you already reviewed.
         </p>
         <div className="rv-add">
           <input

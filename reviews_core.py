@@ -84,6 +84,8 @@ def shape(raw: dict) -> dict:
         "draft": bool(raw.get("isDraft")),
         "updated": str(raw.get("updatedAt") or ""),
         "created": str(raw.get("createdAt") or ""),
+        "additions": int(raw.get("additions") or 0),
+        "deletions": int(raw.get("deletions") or 0),
     }
 
 
@@ -138,15 +140,21 @@ def parse_pr_id(value: str) -> tuple[str, int]:
 
 # ---------------------------------------------------------------- calls
 
-SEARCH_QUERY = """query($q: String!) {
-  search(query: $q, type: ISSUE, first: 100) {
-    nodes { ... on PullRequest {
-      number title url isDraft updatedAt createdAt headRefName
-      author { login } repository { nameWithOwner }
-      files(first: 100) { nodes { path } }
-    } }
-  }
+# Two searches: PRs that request my review, and open PRs I already reviewed. GitHub drops me from
+# the requested reviewers when I submit a review, so the second search keeps those PRs on the page.
+SEARCH_QUERY = """query($requested: String!, $reviewed: String!) {
+  viewer { login }
+  requested: search(query: $requested, type: ISSUE, first: 100) { nodes { ...Row } }
+  reviewed: search(query: $reviewed, type: ISSUE, first: 100) { nodes { ...Row } }
+}
+fragment Row on PullRequest {
+  number title url isDraft updatedAt createdAt headRefName additions deletions
+  author { login } repository { nameWithOwner }
+  files(first: 100) { nodes { path } }
+  latestReviews(first: 100) { nodes { author { login } state } }
 }"""
+# My latest review state -> the status the page shows. COMMENTED and DISMISSED read as "commented".
+REVIEW_STATUS = {"APPROVED": "approved", "CHANGES_REQUESTED": "changes"}
 TICKET = re.compile(r"^[A-Za-z][A-Za-z0-9]*-\d+$")
 
 
@@ -165,19 +173,42 @@ def project_of(branch: str, paths: list[str]) -> tuple[str, str]:
     return "Other", ""
 
 
+def review_status(node: dict, me: str, requested: bool) -> str:
+    """awaiting | approved | changes | commented. A pending request wins: a re-request means it waits again."""
+    if requested:
+        return "awaiting"
+    mine = [r for r in ((node.get("latestReviews") or {}).get("nodes") or [])
+            if ((r or {}).get("author") or {}).get("login", "").lower() == me.lower()]
+    return REVIEW_STATUS.get(str(mine[-1].get("state") or "").upper(), "commented") if mine else "commented"
+
+
 def api_list(_id: str = "", _body=None) -> dict:
     org = owner()
-    out = gh("api", "graphql", "-f", f"query={SEARCH_QUERY}", "-f", f"q=is:pr is:open review-requested:@me org:{org}")
-    nodes = [n for n in ((json.loads(out or "{}").get("data") or {}).get("search") or {}).get("nodes") or [] if n]
+    out = gh("api", "graphql", "-f", f"query={SEARCH_QUERY}",
+             "-f", f"requested=is:pr is:open review-requested:@me org:{org}",
+             "-f", f"reviewed=is:pr is:open reviewed-by:@me -author:@me org:{org}")
+    data = json.loads(out or "{}").get("data") or {}
+    me = str((data.get("viewer") or {}).get("login") or "")
+
+    def nodes(key):
+        return [n for n in (data.get(key) or {}).get("nodes") or [] if n and n.get("url")]
+
     hidden = set(load_state().get("hidden", []))
-    prs = []
-    for n in nodes:
-        row = shape(n)
-        paths = [f.get("path", "") for f in ((n.get("files") or {}).get("nodes") or [])]
-        row["branch"] = n.get("headRefName", "")
-        row["project"], row["projectSource"] = project_of(row["branch"], paths)
-        prs.append(row)
+    prs, seen = [], set()
+    for requested, key in ((True, "requested"), (False, "reviewed")):
+        for n in nodes(key):
+            if n["url"] in seen:
+                continue
+            seen.add(n["url"])
+            row = shape(n)
+            paths = [f.get("path", "") for f in ((n.get("files") or {}).get("nodes") or [])]
+            row["branch"] = n.get("headRefName", "")
+            row["project"], row["projectSource"] = project_of(row["branch"], paths)
+            row["status"] = review_status(n, me, requested)
+            prs.append(row)
+    # Waiting PRs first, newest first inside each part.
     prs.sort(key=lambda p: p["updated"], reverse=True)
+    prs.sort(key=lambda p: p["status"] != "awaiting")
     shown = [p for p in prs if p["url"] not in hidden]
     return {"ok": True, "owner": org, "prs": shown, "hidden": [p for p in prs if p["url"] in hidden]}
 
@@ -316,7 +347,7 @@ def api_add(_id: str = "", body=None) -> dict:
     if pr_owner.lower() != org.lower():
         raise ValueError(f"only {org} pull requests")
     full = f"{pr_owner}/{repo}"
-    view = json.loads(gh("pr", "view", str(number), "-R", full, "--json", "number,title,url,author,isDraft,updatedAt,createdAt,state,headRefName,files"))
+    view = json.loads(gh("pr", "view", str(number), "-R", full, "--json", "number,title,url,author,isDraft,updatedAt,createdAt,state,headRefName,files,additions,deletions"))
     if view.get("state") != "OPEN":
         raise ValueError(f"{full}#{number} is {str(view.get('state', '')).lower()}")
     me = gh("api", "user", "--jq", ".login").strip()
@@ -328,6 +359,7 @@ def api_add(_id: str = "", body=None) -> dict:
     row = shape(view)
     row["branch"] = view.get("headRefName", "")
     row["project"], row["projectSource"] = project_of(row["branch"], [f.get("path", "") for f in view.get("files") or []])
+    row["status"] = "awaiting"
     return {"ok": True, "pr": row}
 
 

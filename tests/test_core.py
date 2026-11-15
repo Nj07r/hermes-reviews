@@ -31,13 +31,35 @@ class ParseUrl(unittest.TestCase):
 class Api(unittest.TestCase):
     def test_list_sorted_newest_first(self):
         nodes = [dict(n, headRefName="ACME-1/web/feat/x", files={"nodes": [{"path": "apps/web/a.ts"}]}) for n in SEARCH]
-        with mock.patch.object(core, "gh", return_value=json.dumps({"data": {"search": {"nodes": nodes}}})) as gh, \
+        data = {"data": {"viewer": {"login": "me"}, "requested": {"nodes": nodes}, "reviewed": {"nodes": []}}}
+        with mock.patch.object(core, "gh", return_value=json.dumps(data)) as gh, \
                 mock.patch.object(core, "load_state", lambda: {}):
             out = core.api_list()
         self.assertEqual([p["number"] for p in out["prs"]], [2, 1])
         self.assertTrue(out["prs"][0]["draft"])
         self.assertEqual(out["prs"][0]["project"], "web")
-        self.assertIn("q=is:pr is:open review-requested:@me org:acme", gh.call_args.args)
+        self.assertEqual(out["prs"][0]["status"], "awaiting")
+        self.assertIn("requested=is:pr is:open review-requested:@me org:acme", gh.call_args.args)
+        self.assertIn("reviewed=is:pr is:open reviewed-by:@me -author:@me org:acme", gh.call_args.args)
+
+    def test_list_review_status(self):
+        def pr(n, updated, reviews, adds=0):
+            return {"number": n, "title": str(n), "url": f"https://github.com/acme/app/pull/{n}", "updatedAt": updated,
+                    "repository": {"nameWithOwner": "acme/app"}, "additions": adds, "deletions": 1,
+                    "latestReviews": {"nodes": [{"author": {"login": login}, "state": s} for login, s in reviews]}}
+        rerequested = pr(1, "2026-11-01T00:00:00Z", [("Me", "APPROVED")])
+        reviewed = [
+            rerequested,  # also in the requested search: the request wins, no duplicate row
+            pr(2, "2026-11-10T00:00:00Z", [("dana", "CHANGES_REQUESTED"), ("me", "APPROVED")], adds=40),
+            pr(3, "2026-11-09T00:00:00Z", [("me", "CHANGES_REQUESTED")]),
+            pr(4, "2026-11-08T00:00:00Z", [("me", "COMMENTED")]),
+        ]
+        data = {"data": {"viewer": {"login": "me"}, "requested": {"nodes": [rerequested]}, "reviewed": {"nodes": reviewed}}}
+        with mock.patch.object(core, "gh", return_value=json.dumps(data)), mock.patch.object(core, "load_state", lambda: {}):
+            out = core.api_list()
+        self.assertEqual([(p["number"], p["status"]) for p in out["prs"]],
+                         [(1, "awaiting"), (2, "approved"), (3, "changes"), (4, "commented")])
+        self.assertEqual((out["prs"][1]["additions"], out["prs"][1]["deletions"]), (40, 1))
 
     def test_add_refuses_other_org(self):
         with mock.patch.object(core, "gh") as gh, self.assertRaises(ValueError):
