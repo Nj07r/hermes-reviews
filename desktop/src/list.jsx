@@ -155,6 +155,7 @@ export function ReviewsList() {
   const [adding, setAdding] = useState(false)
   const [showHidden, setShowHidden] = useState(false)
   const groupBy = useStore(s => s.groupBy)
+  const show = useStore(s => s.show)
   const added = useRef([])
 
   const load = useCallback(async () => {
@@ -214,15 +215,27 @@ export function ReviewsList() {
     }
   }
 
-  const prs = data?.prs || []
+  const all = data?.prs || []
+  const awaiting = all.filter(p => (p.status || 'awaiting') === 'awaiting')
+  const prs = show === 'all' ? all : awaiting
   const hidden = data?.hidden || []
   return (
     <div className="rv-scroll">
       <div className="rv-wrap">
         <div className="rv-title-row">
           <h1 className="rv-h1">Reviews</h1>
-          <span className="rv-count">{data ? `${prs.filter(p => (p.status || 'awaiting') === 'awaiting').length} waiting` : ''}</span>
+          <span className="rv-count">{data ? `${awaiting.length} waiting` : ''}</span>
           <span className="rv-spacer" />
+          <div className="rv-seg" role="group" aria-label="Show">
+            {[
+              ['awaiting', 'Awaiting'],
+              ['all', `All${data ? ` ${all.length}` : ''}`]
+            ].map(([k, label]) => (
+              <button key={k} type="button" data-on={show === k} onClick={() => store.set({ show: k })}>
+                {label}
+              </button>
+            ))}
+          </div>
           <div className="rv-seg" role="group" aria-label="Group by">
             {[
               ['project', 'Project'],
@@ -248,7 +261,7 @@ export function ReviewsList() {
           </button>
         </div>
         <p className="rv-sub rv-dim" style={{ fontSize: '0.82rem' }}>
-          Open pull requests that wait for your review, and the ones you already reviewed.
+          {show === 'all' ? 'Open pull requests that wait for your review, and the ones you already reviewed.' : 'Open pull requests that wait for your review.'}
         </p>
         <div className="rv-add">
           <input
@@ -290,6 +303,11 @@ export function ReviewsList() {
           <div className="rv-empty">
             Nothing waits for your review.
             <span className="rv-italic">The well is still.</span>
+            {show === 'awaiting' && all.length ? (
+              <button type="button" className="rv-btn rv-btn-ghost" onClick={() => store.set({ show: 'all' })}>
+                Show the {all.length} you reviewed
+              </button>
+            ) : null}
           </div>
         )}
         {hidden.length ? (

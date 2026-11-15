@@ -53,7 +53,8 @@ export const store = createStore({
   tab: 'overview',
   diffStyle: 'split',
   wrap: false,
-  groupBy: 'project' // 'project' | 'person' | 'none'
+  groupBy: 'project', // 'project' | 'person' | 'none'
+  show: 'awaiting' // 'awaiting' | 'all'. Not saved: every app start opens on Awaiting.
 })
 
 export const useStore = sel => useSyncExternalStore(store.subscribe, () => sel(store.get()))
