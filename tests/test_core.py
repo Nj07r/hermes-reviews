@@ -45,7 +45,7 @@ class Api(unittest.TestCase):
     def test_list_review_status(self):
         def pr(n, updated, reviews, adds=0):
             return {"number": n, "title": str(n), "url": f"https://github.com/acme/app/pull/{n}", "updatedAt": updated,
-                    "repository": {"nameWithOwner": "acme/app"}, "additions": adds, "deletions": 1,
+                    "repository": {"nameWithOwner": "acme/app"}, "additions": adds, "deletions": 1, "changedFiles": 3,
                     "latestReviews": {"nodes": [{"author": {"login": login}, "state": s} for login, s in reviews]}}
         rerequested = pr(1, "2026-11-01T00:00:00Z", [("Me", "APPROVED")])
         reviewed = [
@@ -59,7 +59,7 @@ class Api(unittest.TestCase):
             out = core.api_list()
         self.assertEqual([(p["number"], p["status"]) for p in out["prs"]],
                          [(1, "awaiting"), (2, "approved"), (3, "changes"), (4, "commented")])
-        self.assertEqual((out["prs"][1]["additions"], out["prs"][1]["deletions"]), (40, 1))
+        self.assertEqual((out["prs"][1]["additions"], out["prs"][1]["deletions"], out["prs"][1]["changedFiles"]), (40, 1, 3))
 
     def test_add_refuses_other_org(self):
         with mock.patch.object(core, "gh") as gh, self.assertRaises(ValueError):

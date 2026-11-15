@@ -86,6 +86,7 @@ def shape(raw: dict) -> dict:
         "created": str(raw.get("createdAt") or ""),
         "additions": int(raw.get("additions") or 0),
         "deletions": int(raw.get("deletions") or 0),
+        "changedFiles": int(raw.get("changedFiles") or 0),
     }
 
 
@@ -148,7 +149,7 @@ SEARCH_QUERY = """query($requested: String!, $reviewed: String!) {
   reviewed: search(query: $reviewed, type: ISSUE, first: 100) { nodes { ...Row } }
 }
 fragment Row on PullRequest {
-  number title url isDraft updatedAt createdAt headRefName additions deletions
+  number title url isDraft updatedAt createdAt headRefName additions deletions changedFiles
   author { login } repository { nameWithOwner }
   files(first: 100) { nodes { path } }
   latestReviews(first: 100) { nodes { author { login } state } }
@@ -347,7 +348,7 @@ def api_add(_id: str = "", body=None) -> dict:
     if pr_owner.lower() != org.lower():
         raise ValueError(f"only {org} pull requests")
     full = f"{pr_owner}/{repo}"
-    view = json.loads(gh("pr", "view", str(number), "-R", full, "--json", "number,title,url,author,isDraft,updatedAt,createdAt,state,headRefName,files,additions,deletions"))
+    view = json.loads(gh("pr", "view", str(number), "-R", full, "--json", "number,title,url,author,isDraft,updatedAt,createdAt,state,headRefName,files,additions,deletions,changedFiles"))
     if view.get("state") != "OPEN":
         raise ValueError(f"{full}#{number} is {str(view.get('state', '')).lower()}")
     me = gh("api", "user", "--jq", ".login").strip()

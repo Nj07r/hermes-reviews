@@ -64,7 +64,13 @@ function Row({ pr, index, onHide, onUnhide, hidden, groupBy }) {
             </span>
           )
         })()}
-        <span className="rv-mono rv-row-lines" title={`${pr.additions ?? 0} lines added, ${pr.deletions ?? 0} lines removed`}>
+        <span
+          className="rv-mono rv-row-lines"
+          title={`${pr.changedFiles ?? 0} files changed, ${pr.additions ?? 0} lines added, ${pr.deletions ?? 0} lines removed`}
+        >
+          <span className="rv-faint">
+            {pr.changedFiles ?? 0} {pr.changedFiles === 1 ? 'file' : 'files'}
+          </span>{' '}
           <span className="rv-plus">+{pr.additions ?? 0}</span> <span className="rv-minus">−{pr.deletions ?? 0}</span>
         </span>
       </div>
