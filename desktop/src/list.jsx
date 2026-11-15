@@ -235,7 +235,7 @@ export function ReviewsList() {
           <div className="rv-seg" role="group" aria-label="Show">
             {[
               ['awaiting', 'Awaiting'],
-              ['all', `All${data ? ` ${all.length}` : ''}`]
+              ['all', `Unmerged${data ? ` ${all.length}` : ''}`]
             ].map(([k, label]) => (
               <button key={k} type="button" data-on={show === k} onClick={() => store.set({ show: k })}>
                 {label}
